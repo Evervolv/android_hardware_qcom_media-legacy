@@ -42,7 +42,9 @@ endif
 ifeq ($(TARGET_BOARD_PLATFORM),msm7x30)
 libmm-venc-def += -DMAX_RES_720P
 endif
+ifneq ($(TARGET_USES_PMEM_ADSP),true)
 libmm-venc-def += -DUSE_ION
+endif
 libmm-venc-def += -D_ANDROID_ICS_
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVenc)

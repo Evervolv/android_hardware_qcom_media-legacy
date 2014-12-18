@@ -36,14 +36,9 @@ class DashPlayerFactory : public MediaPlayerFactory::IFactory {
         if (kOurScore <= curScore)
             return 0.0;
 
-        if (!strncasecmp("http://", url, 7)
-                || !strncasecmp("https://", url, 8)) {
+        if (!strncasecmp("http://", url, 7)) {
             size_t len = strlen(url);
             if (len >= 5 && !strcasecmp(".mpd", &url[len - 4])) {
-                return kOurScore;
-            }
-
-            if (strstr(url,"mpd")) {
                 return kOurScore;
             }
         }

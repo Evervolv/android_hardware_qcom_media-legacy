@@ -56,6 +56,8 @@ class DashPlayerStats : public RefBase {
     void logFpsSummary();
     static int64_t getTimeOfDayUs();
     void incrementTotalRenderingFrames();
+    void notifyBufferingEvent();
+    void setFileDescAndOutputStream(int fd);
 
   private:
     void logFirstFrame();
@@ -85,6 +87,9 @@ class DashPlayerStats : public RefBase {
     int64_t mTotalTime;
     int64_t mFirstFrameTime;
     uint64_t mTotalRenderingFrames;
+    bool mBufferingEvent;
+    int mFd;
+    FILE *mFileOut;
 };
 
 } // namespace android

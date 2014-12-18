@@ -52,6 +52,7 @@ DashPlayerDriver::DashPlayerDriver()
 
 DashPlayerDriver::~DashPlayerDriver() {
     mLooper->stop();
+    mLooper->unregisterHandler(mPlayer->id());
 }
 
 status_t DashPlayerDriver::initCheck() {
@@ -65,14 +66,15 @@ status_t DashPlayerDriver::setUID(uid_t uid) {
 }
 
 status_t DashPlayerDriver::setDataSource(
+         const sp<IMediaHTTPService> &httpService,
         const char *url, const KeyedVector<String8, String8> *headers) {
     CHECK_EQ((int)mState, (int)UNINITIALIZED);
 
-    mPlayer->setDataSource(url, headers);
+    status_t ret = mPlayer->setDataSource(url, headers);
 
     mState = STOPPED;
 
-    return OK;
+    return ret;
 }
 
 status_t DashPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
@@ -95,12 +97,21 @@ status_t DashPlayerDriver::setDataSource(const sp<IStreamSource> &source) {
     return OK;
 }
 
+#ifdef ANDROID_JB_MR2
+status_t DashPlayerDriver::setVideoSurfaceTexture(
+        const sp<IGraphicBufferProducer> &bufferProducer) {
+    mPlayer->setVideoSurfaceTexture(bufferProducer);
+
+    return OK;
+}
+#else
 status_t DashPlayerDriver::setVideoSurfaceTexture(
         const sp<ISurfaceTexture> &surfaceTexture) {
     mPlayer->setVideoSurfaceTexture(surfaceTexture);
 
     return OK;
 }
+#endif
 
 status_t DashPlayerDriver::prepare() {
     sendEvent(MEDIA_SET_VIDEO_SIZE, 0, 0);
@@ -362,21 +373,9 @@ void DashPlayerDriver::notifyFrameStats(
 }
 
 status_t DashPlayerDriver::dump(int fd, const Vector<String16> &args) const {
-    Mutex::Autolock autoLock(mLock);
-
-    FILE *out = fdopen(dup(fd), "w");
-
-    fprintf(out, " DashPlayer\n");
-    fprintf(out, "  numFramesTotal(%lld), numFramesDropped(%lld), "
-                 "percentageDropped(%.2f)\n",
-                 mNumFramesTotal,
-                 mNumFramesDropped,
-                 mNumFramesTotal == 0
-                    ? 0.0 : (double)mNumFramesDropped / mNumFramesTotal);
-
-    fclose(out);
-    out = NULL;
-
+    if(mPlayer != NULL) {
+      mPlayer->dump(fd, args);
+    }
     return OK;
 }
 

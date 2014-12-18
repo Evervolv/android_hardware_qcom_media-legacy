@@ -42,12 +42,17 @@ struct DashPlayer : public AHandler {
 
     void setDataSource(const sp<IStreamSource> &source);
 
-    void setDataSource(
+    status_t  setDataSource(
             const char *url, const KeyedVector<String8, String8> *headers);
 
     void setDataSource(int fd, int64_t offset, int64_t length);
 
+#ifdef ANDROID_JB_MR2
+    void setVideoSurfaceTexture(const sp<IGraphicBufferProducer> &bufferProducer);
+#else
     void setVideoSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture);
+#endif
+
     void setAudioSink(const sp<MediaPlayerBase::AudioSink> &sink);
     void start();
 
@@ -63,6 +68,7 @@ struct DashPlayer : public AHandler {
     status_t prepareAsync();
     status_t getParameter(int key, Parcel *reply);
     status_t setParameter(int key, const Parcel &request);
+    status_t dump(int fd, const Vector<String16> &args);
 
 public:
     struct DASHHTTPLiveSource;
@@ -189,6 +195,7 @@ private:
     FlushStatus mFlushingVideo;
     bool mResetInProgress;
     bool mResetPostponed;
+    bool mSetVideoSize;
 
     int64_t mSkipRenderingAudioUntilMediaTimeUs;
     int64_t mSkipRenderingVideoUntilMediaTimeUs;

@@ -50,7 +50,8 @@ DashPlayer::Renderer::Renderer(
       mWasPaused(false),
       mLastPositionUpdateUs(-1ll),
       mVideoLateByUs(0ll),
-      mStats(NULL) {
+      mStats(NULL),
+      mSeekTimeUs(0){
 }
 
 DashPlayer::Renderer::~Renderer() {
@@ -107,6 +108,7 @@ void DashPlayer::Renderer::signalTimeDiscontinuity() {
     mAnchorTimeMediaUs = -1;
     mAnchorTimeRealUs = -1;
     mWasPaused = false;
+    mSeekTimeUs = 0;
     mSyncQueues = mHasAudio && mHasVideo;
     ALOGI("signalTimeDiscontinuity mHasAudio %d mHasVideo %d mSyncQueues %d",mHasAudio,mHasVideo,mSyncQueues);
 }
@@ -231,6 +233,21 @@ void DashPlayer::Renderer::signalAudioSinkChanged() {
 
 bool DashPlayer::Renderer::onDrainAudioQueue() {
     uint32_t numFramesPlayed;
+
+    // Check if first frame is EOS, process EOS and return
+    if(1 == mAudioQueue.size())
+    {
+       QueueEntry *entry = &*mAudioQueue.begin();
+       if (entry->mBuffer == NULL) {
+        ALOGE("onDrainAudioQueue process EOS");
+        notifyEOS(true /* audio */, entry->mFinalResult);
+
+        mAudioQueue.erase(mAudioQueue.begin());
+        entry = NULL;
+        return false;
+      }
+    }
+
     if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
         return false;
     }
@@ -375,6 +392,8 @@ void DashPlayer::Renderer::onDrainVideoQueue() {
     if (entry->mBuffer == NULL) {
         // EOS
 
+        notifyPosition(true);
+
         notifyEOS(false /* audio */, entry->mFinalResult);
 
         mVideoQueue.erase(mVideoQueue.begin());
@@ -382,7 +401,6 @@ void DashPlayer::Renderer::onDrainVideoQueue() {
 
         mVideoLateByUs = 0ll;
 
-        notifyPosition();
         return;
     }
 
@@ -628,20 +646,20 @@ void DashPlayer::Renderer::onAudioSinkChanged() {
     }
 }
 
-void DashPlayer::Renderer::notifyPosition() {
+void DashPlayer::Renderer::notifyPosition(bool isEOS) {
     if (mAnchorTimeRealUs < 0 || mAnchorTimeMediaUs < 0) {
         return;
     }
 
     int64_t nowUs = ALooper::GetNowUs();
 
-    if (mLastPositionUpdateUs >= 0
-            && nowUs < mLastPositionUpdateUs + kMinPositionUpdateDelayUs) {
+    if ((!isEOS) && (mLastPositionUpdateUs >= 0
+            && nowUs < mLastPositionUpdateUs + kMinPositionUpdateDelayUs)) {
         return;
     }
     mLastPositionUpdateUs = nowUs;
 
-    int64_t positionUs = (nowUs - mAnchorTimeRealUs) + mAnchorTimeMediaUs;
+    int64_t positionUs = (mSeekTimeUs != 0) ? mSeekTimeUs : ((nowUs - mAnchorTimeRealUs) + mAnchorTimeMediaUs);
 
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatPosition);
@@ -649,6 +667,19 @@ void DashPlayer::Renderer::notifyPosition() {
     notify->setInt64("videoLateByUs", mVideoLateByUs);
     notify->post();
 }
+
+void DashPlayer::Renderer::notifySeekPosition(int64_t seekTime){
+  mSeekTimeUs = seekTime;
+  int64_t nowUs = ALooper::GetNowUs();
+  mLastPositionUpdateUs = nowUs;
+  sp<AMessage> notify = mNotify->dup();
+  notify->setInt32("what", kWhatPosition);
+  notify->setInt64("positionUs", seekTime);
+  notify->setInt64("videoLateByUs", mVideoLateByUs);
+  notify->post();
+
+}
+
 
 void DashPlayer::Renderer::onPause() {
     CHECK(!mPaused);
